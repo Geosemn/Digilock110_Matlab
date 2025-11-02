@@ -1,13 +1,12 @@
 classdef DigiLock110 < handle
     % DigiLock110 - MATLAB interface for Toptica DigiLock 110
     % 
-    % This class provides remote control of the Toptica DigiLock 110
-    % Feedback Controlyzer via TCP/IP connection.
+    % CORRECTED VERSION with proper RCI TCP/IP communication
     %
     % Usage:
-    %   dl = DigiLock110('192.168.1.100', 5000);
+    %   dl = DigiLock110('192.168.1.100', 60001);
     %   dl.connect();
-    %   dl.scan.setFrequency(10); % 10 Hz scan
+    %   dl.pid1.setGain(5);
     %   dl.disconnect();
     
     properties (Access = public)
@@ -39,13 +38,13 @@ classdef DigiLock110 < handle
             % 
             % Parameters:
             %   host - IP address of DigiLock 110 (string)
-            %   port - Port number (default: 5000)
+            %   port - Port number (use DUI port, typically 60001)
             %   varargin - Optional parameters:
             %              'Timeout', value (default: 5 seconds)
             %              'Verbose', true/false (default: false)
             
             if nargin < 2 || isempty(port)
-                port = 5000; % Default port
+                port = 60001; % Default DUI port
             end
             
             obj.host = host;
@@ -94,10 +93,14 @@ classdef DigiLock110 < handle
                     fprintf('Connected successfully.\n');
                 end
                 
-                % Query identification
-                idn = obj.query('*IDN?');
+                % Wait and clear welcome message
+                pause(0.3);
+                if obj.tcpClient.NumBytesAvailable > 0
+                    read(obj.tcpClient, obj.tcpClient.NumBytesAvailable, 'uint8');
+                end
+                
                 if obj.verbose
-                    fprintf('Device: %s\n', idn);
+                    fprintf('RCI ready.\n');
                 end
                 
             catch ME
@@ -139,7 +142,9 @@ classdef DigiLock110 < handle
                     fprintf('>> %s\n', command);
                 end
                 
-                writeline(obj.tcpClient, command);
+                % Send with explicit CR/LF
+                write(obj.tcpClient, uint8([command char(13) char(10)]));
+                pause(0.05);
                 
             catch ME
                 error('DigiLock110:WriteFailed', ...
@@ -162,12 +167,46 @@ classdef DigiLock110 < handle
             end
             
             try
-                obj.write(command);
-                response = readline(obj.tcpClient);
-                response = char(response);
-                
                 if obj.verbose
-                    fprintf('<< %s\n', response);
+                    fprintf('>> %s\n', command);
+                end
+                
+                % Send query with explicit CR/LF
+                write(obj.tcpClient, uint8([command char(13) char(10)]));
+                
+                % Wait for response
+                pause(0.3);
+                
+                if obj.tcpClient.NumBytesAvailable > 0
+                    % Read all available bytes
+                    raw = read(obj.tcpClient, obj.tcpClient.NumBytesAvailable, 'uint8');
+                    response_text = char(raw);
+                    
+                    % Split by lines
+                    lines = splitlines(string(response_text));
+                    
+                    % Find the response line (contains '=')
+                    response = '';
+                    for i = 1:length(lines)
+                        line = char(lines(i));
+                        if contains(line, '=')
+                            % Parse "command=value" format
+                            parts = split(line, '=');
+                            if length(parts) >= 2
+                                response = strtrim(parts{2});
+                                break;
+                            end
+                        end
+                    end
+                    
+                    if obj.verbose
+                        fprintf('<< %s\n', response);
+                    end
+                else
+                    response = '';
+                    if obj.verbose
+                        fprintf('<< (no response)\n');
+                    end
                 end
                 
             catch ME
@@ -177,27 +216,54 @@ classdef DigiLock110 < handle
         end
         
         function value = queryNumeric(obj, command)
-            % Send query and receive numeric response
-            %
-            % Parameters:
-            %   command - Query string
-            %
-            % Returns:
-            %   value - Numeric value
-            
-            response = obj.query(command);
-            value = str2double(response);
-            
-            if isnan(value)
-                error('DigiLock110:InvalidResponse', ...
-                    'Received non-numeric response: %s', response);
-            end
+    % Send query and receive numeric response (handles unit suffixes)
+    
+    response = obj.query(command);
+    
+    if isempty(response)
+        error('DigiLock110:InvalidResponse', ...
+            'Received empty response for: %s', command);
+    end
+    
+    % Handle unit suffixes (m=milli, k=kilo, M=mega, etc.)
+    response = strtrim(response);
+    
+    % Check for unit suffix
+    if ~isempty(response) && isnan(str2double(response))
+        lastChar = response(end);
+        numPart = response(1:end-1);
+        
+        switch lastChar
+            case 'm'  % milli (10^-3)
+                value = str2double(numPart) * 1e-3;
+            case 'u'  % micro (10^-6)
+                value = str2double(numPart) * 1e-6;
+            case 'n'  % nano (10^-9)
+                value = str2double(numPart) * 1e-9;
+            case 'k'  % kilo (10^3)
+                value = str2double(numPart) * 1e3;
+            case 'M'  % mega (10^6)
+                value = str2double(numPart) * 1e6;
+            case 'G'  % giga (10^9)
+                value = str2double(numPart) * 1e9;
+            otherwise
+                value = str2double(response);
         end
+    else
+        value = str2double(response);
+    end
+    
+    if isnan(value)
+        error('DigiLock110:InvalidResponse', ...
+            'Received non-numeric response: %s', response);
+    end
+end
         
         function reset(obj)
-            % Reset device to default state
-            obj.write('*RST');
-            pause(1); % Wait for reset
+            % Reset device to default state (if supported)
+            % Note: RCI may not support *RST
+            obj.write('program:exit=false');
+            pause(1);
         end
         
         function status = isConnected(obj)

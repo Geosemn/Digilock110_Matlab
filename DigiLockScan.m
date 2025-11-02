@@ -1,21 +1,6 @@
 classdef DigiLockScan < handle
     % DigiLockScan - Scan generator module for DigiLock 110
-    %
-    % This class controls the scan waveform generation for scanning
-    % the laser wavelength.
-    %
-    % Properties settable:
-    %   - Signal type (sine, triangle, square, sawtooth)
-    %   - Frequency (Hz)
-    %   - Amplitude (V peak-to-peak)
-    %   - Output channel
-    %
-    % Usage:
-    %   dl.scan.setType('triangle');
-    %   dl.scan.setFrequency(10);
-    %   dl.scan.setAmplitude(5.0);
-    %   dl.scan.setOutput('SC110');
-    %   dl.scan.start();
+    % CORRECTED VERSION with proper RCI command syntax
     
     properties (Access = private)
         parent  % Parent DigiLock110 object
@@ -23,20 +8,17 @@ classdef DigiLockScan < handle
     
     properties (Constant)
         ValidTypes = {'sine', 'triangle', 'square', 'sawtooth'};
-        ValidOutputs = {'Main', 'Aux', 'SC110', 'AIO1', 'AIO2'};
+        ValidOutputs = {'main out', 'aux out', 'sc110 out', 'aio1 out', 'aio2 out'};
     end
     
     methods
         function obj = DigiLockScan(parent)
-            % Constructor
             obj.parent = parent;
         end
         
         function setType(obj, signalType)
             % Set scan waveform type
-            %
-            % Parameters:
-            %   signalType - 'sine', 'triangle', 'square', or 'sawtooth'
+            % RCI Command: scan:signal type=triangle
             
             signalType = lower(signalType);
             if ~ismember(signalType, obj.ValidTypes)
@@ -45,88 +27,98 @@ classdef DigiLockScan < handle
                     strjoin(obj.ValidTypes, ', '));
             end
             
-            obj.parent.write(sprintf('SCAN:TYPE %s', upper(signalType)));
+            obj.parent.write(sprintf('scan:signal type=%s', signalType));
         end
         
         function type = getType(obj)
             % Get current scan waveform type
-            type = obj.parent.query('SCAN:TYPE?');
+            % RCI Command: scan:signal type?
+            type = obj.parent.query('scan:signal type?');
         end
         
         function setFrequency(obj, frequency)
             % Set scan frequency in Hz
-            %
-            % Parameters:
-            %   frequency - Frequency in Hz (positive number)
+            % RCI Command: scan:frequency=10.0
             
             if frequency <= 0
                 error('DigiLockScan:InvalidFrequency', ...
                     'Frequency must be positive');
             end
             
-            obj.parent.write(sprintf('SCAN:FREQ %.6f', frequency));
+            obj.parent.write(sprintf('scan:frequency=%.6f', frequency));
         end
         
         function freq = getFrequency(obj)
             % Get current scan frequency in Hz
-            freq = obj.parent.queryNumeric('SCAN:FREQ?');
+            % RCI Command: scan:frequency?
+            freq = obj.parent.queryNumeric('scan:frequency?');
         end
         
         function setAmplitude(obj, amplitude)
             % Set scan amplitude in Volts (peak-to-peak)
-            %
-            % Parameters:
-            %   amplitude - Amplitude in V (0 to 10 V typical)
+            % RCI Command: scan:amplitude=5.0
             
             if amplitude < 0
                 error('DigiLockScan:InvalidAmplitude', ...
                     'Amplitude must be non-negative');
             end
             
-            obj.parent.write(sprintf('SCAN:AMPL %.6f', amplitude));
+            obj.parent.write(sprintf('scan:amplitude=%.6f', amplitude));
         end
         
         function amp = getAmplitude(obj)
             % Get current scan amplitude in V
-            amp = obj.parent.queryNumeric('SCAN:AMPL?');
+            % RCI Command: scan:amplitude?
+            amp = obj.parent.queryNumeric('scan:amplitude?');
         end
         
         function setOutput(obj, output)
             % Set output channel for scan signal
-            %
-            % Parameters:
-            %   output - Output channel name
-            %            'Main', 'Aux', 'SC110', 'AIO1', 'AIO2'
+            % RCI Command: scan:output=sc110 out
             
-            output = upper(output);
-            if ~ismember(output, upper(obj.ValidOutputs))
+            output = lower(output);
+            
+            % Handle special cases
+            if strcmpi(output, 'sc110')
+                output = 'sc110 out';
+            elseif strcmpi(output, 'main')
+                output = 'main out';
+            elseif strcmpi(output, 'aux')
+                output = 'aux out';
+            end
+            
+            if ~ismember(output, obj.ValidOutputs)
                 error('DigiLockScan:InvalidOutput', ...
                     'Invalid output. Must be: %s', ...
                     strjoin(obj.ValidOutputs, ', '));
             end
             
-            obj.parent.write(sprintf('SCAN:OUTP %s', output));
+            obj.parent.write(sprintf('scan:output=%s', output));
         end
         
         function output = getOutput(obj)
             % Get current output channel
-            output = obj.parent.query('SCAN:OUTP?');
+            % RCI Command: scan:output?
+            output = obj.parent.query('scan:output?');
         end
         
         function start(obj)
             % Start scan generation
-            obj.parent.write('SCAN:STAT ON');
+            % RCI Command: scan:enable=true
+            obj.parent.write('scan:enable=true');
         end
         
         function stop(obj)
             % Stop scan generation
-            obj.parent.write('SCAN:STAT OFF');
+            % RCI Command: scan:enable=false
+            obj.parent.write('scan:enable=false');
         end
         
         function status = getStatus(obj)
-            % Get scan status (ON/OFF)
-            response = obj.parent.query('SCAN:STAT?');
-            status = strcmpi(response, 'ON') || strcmpi(response, '1');
+            % Get scan status
+            % RCI Command: scan:enable?
+            response = obj.parent.query('scan:enable?');
+            status = strcmpi(response, 'true') || strcmpi(response, '1');
         end
         
         function configure(obj, varargin)
@@ -143,7 +135,7 @@ classdef DigiLockScan < handle
             %   dl.scan.configure('Type', 'triangle', ...
             %                     'Frequency', 10, ...
             %                     'Amplitude', 5, ...
-            %                     'Output', 'SC110', ...
+            %                     'Output', 'sc110 out', ...
             %                     'Start', true);
             
             p = inputParser;

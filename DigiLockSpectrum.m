@@ -1,8 +1,7 @@
-
-% ========================================================================
-% DigiLockSpectrum - Spectrum analyzer module
-% ========================================================================
 classdef DigiLockSpectrum < handle
+    % DigiLockSpectrum - Spectrum analyzer module
+    % CORRECTED VERSION with proper RCI command syntax
+    
     properties (Access = private)
         parent
     end
@@ -14,28 +13,62 @@ classdef DigiLockSpectrum < handle
         
         function data = acquire(obj, channel)
             % Acquire spectrum data (FFT)
-            % channel: 1 or 2
+            % RCI Command: spectrum:graph?
             
-            cmd = sprintf('SPEC:CH%d:DATA?', channel);
-            response = obj.parent.query(cmd);
+            response = obj.parent.query('spectrum:graph?');
             
-            % Parse response
-            data = str2num(response); %#ok<ST2NM>
+            if isempty(response)
+                data = [];
+                return;
+            end
+            
+            try
+                response = strrep(response, '[', '');
+                response = strrep(response, ']', '');
+                data_matrix = str2num(response); %#ok<ST2NM>
+                
+                if ~isempty(data_matrix) && size(data_matrix, 2) >= channel
+                    data = data_matrix(:, channel);
+                else
+                    data = [];
+                end
+            catch
+                data = [];
+            end
         end
         
         function setChannel(obj, channel, source)
-            % Set input source for spectrum channel
-            cmd = sprintf('SPEC:CH%d:SOUR %s', channel, upper(source));
-            obj.parent.write(cmd);
+            % RCI Command: spectrum:ch1:channel=main in
+            source = lower(source);
+            obj.parent.write(sprintf('spectrum:ch%d:channel=%s', channel, source));
         end
         
         function setSpan(obj, span)
-            % Set frequency span in Hz
-            obj.parent.write(sprintf('SPEC:SPAN %.6f', span));
+            % RCI Command: spectrum:frequency scale=10kHz
+            % Can use string or numeric (Hz)
+            if isnumeric(span)
+                if span >= 1e3
+                    spanStr = sprintf('%.1fkHz', span/1e3);
+                else
+                    spanStr = sprintf('%.1fHz', span);
+                end
+            else
+                spanStr = span;
+            end
+            obj.parent.write(sprintf('spectrum:frequency scale=%s', spanStr));
         end
         
         function span = getSpan(obj)
-            span = obj.parent.queryNumeric('SPEC:SPAN?');
+            % RCI Command: spectrum:frequency scale?
+            response = obj.parent.query('spectrum:frequency scale?');
+            % Parse response (may contain units)
+            if contains(response, 'kHz')
+                span = str2double(strrep(response, 'kHz', '')) * 1e3;
+            elseif contains(response, 'MHz')
+                span = str2double(strrep(response, 'MHz', '')) * 1e6;
+            else
+                span = str2double(strrep(response, 'Hz', ''));
+            end
         end
     end
 end

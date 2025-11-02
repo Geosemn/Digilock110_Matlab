@@ -1,8 +1,7 @@
-
-% ========================================================================
-% DigiLockSystem - System configuration module
-% ========================================================================
 classdef DigiLockSystem < handle
+    % DigiLockSystem - System configuration module
+    % CORRECTED VERSION with proper RCI command syntax
+    
     properties (Access = private)
         parent
     end
@@ -13,57 +12,62 @@ classdef DigiLockSystem < handle
         end
         
         function setInputOffset(obj, value)
-            % Set Main input offset
-            obj.parent.write(sprintf('SYST:INP:OFFS %.6f', value));
+            % RCI Command: main in:input offset=0
+            obj.parent.write(sprintf('main in:input offset=%.6f', value));
         end
         
         function value = getInputOffset(obj)
-            value = obj.parent.queryNumeric('SYST:INP:OFFS?');
+            % RCI Command: main in:input offset?
+            value = obj.parent.queryNumeric('main in:input offset?');
         end
         
         function setInputGain(obj, value)
-            % Set Main input analog gain
-            obj.parent.write(sprintf('SYST:INP:GAIN %.6f', value));
+            % RCI Command: main in:gain=1
+            obj.parent.write(sprintf('main in:gain=%d', value));
         end
         
         function value = getInputGain(obj)
-            value = obj.parent.queryNumeric('SYST:INP:GAIN?');
+            % RCI Command: main in:gain?
+            value = obj.parent.queryNumeric('main in:gain?');
         end
         
         function setInvert(obj, enable)
-            % Invert input signal
+            % RCI Command: main in:invert=true
             if enable
-                obj.parent.write('SYST:INP:INV ON');
+                obj.parent.write('main in:invert=true');
             else
-                obj.parent.write('SYST:INP:INV OFF');
+                obj.parent.write('main in:invert=false');
             end
         end
         
         function status = getInvert(obj)
-            response = obj.parent.query('SYST:INP:INV?');
-            status = strcmpi(response, 'ON') || strcmpi(response, '1');
+            % RCI Command: main in:invert?
+            response = obj.parent.query('main in:invert?');
+            status = strcmpi(response, 'true') || strcmpi(response, '1');
         end
         
         function setLowPassFilter(obj, frequency, order)
-            % Configure low-pass filter
-            obj.parent.write(sprintf('SYST:FILT:LP:FREQ %.6f', frequency));
-            obj.parent.write(sprintf('SYST:FILT:LP:ORD %d', order));
-            obj.parent.write('SYST:FILT:LP:STAT ON');
+            % RCI Commands: main in:low pass:frequency, :order, :bypass
+            obj.parent.write(sprintf('main in:low pass:frequency=%.6f', frequency));
+            obj.parent.write(sprintf('main in:low pass:order=%d', order));
+            obj.parent.write('main in:low pass:bypass=false');
         end
         
         function disableLowPassFilter(obj)
-            obj.parent.write('SYST:FILT:LP:STAT OFF');
+            % RCI Command: main in:low pass:bypass=true
+            obj.parent.write('main in:low pass:bypass=true');
         end
         
         function setHighPassFilter(obj, frequency, order)
-            % Configure high-pass filter
-            obj.parent.write(sprintf('SYST:FILT:HP:FREQ %.6f', frequency));
-            obj.parent.write(sprintf('SYST:FILT:HP:ORD %d', order));
-            obj.parent.write('SYST:FILT:HP:STAT ON');
+            % RCI Commands: main in:high pass:frequency, :order, :bypass
+            obj.parent.write(sprintf('main in:high pass:frequency=%.6f', frequency));
+            obj.parent.write(sprintf('main in:high pass:order=%d', order));
+            obj.parent.write('main in:high pass:bypass=false');
         end
         
         function disableHighPassFilter(obj)
-            obj.parent.write('SYST:FILT:HP:STAT OFF');
+            % RCI Command: main in:high pass:bypass=true
+            obj.parent.write('main in:high pass:bypass=true');
         end
     end
 end

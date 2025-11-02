@@ -1,7 +1,7 @@
-% ========================================================================
-% DigiLockAutoLock - AutoLock module
-% ========================================================================
 classdef DigiLockAutoLock < handle
+    % DigiLockAutoLock - AutoLock module
+    % CORRECTED VERSION with proper RCI command syntax
+    
     properties (Access = private)
         parent
     end
@@ -12,52 +12,67 @@ classdef DigiLockAutoLock < handle
         end
         
         function enable(obj, state)
-            % Enable/disable AutoLock
+            % RCI Command: autolock:enable=true
             if state
-                obj.parent.write('AUTO:STAT ON');
+                obj.parent.write('autolock:enable=true');
             else
-                obj.parent.write('AUTO:STAT OFF');
+                obj.parent.write('autolock:enable=false');
             end
         end
         
         function setInput(obj, input)
-            % Set common input for AutoLock controllers
-            obj.parent.write(sprintf('AUTO:INP %s', upper(input)));
+            % RCI Command: autolock:input=li out
+            input = lower(input);
+            if strcmpi(input, 'liout'), input = 'li out'; end
+            if strcmpi(input, 'pdhout'), input = 'pdh out'; end
+            obj.parent.write(sprintf('autolock:input=%s', input));
         end
         
         function input = getInput(obj)
-            input = obj.parent.query('AUTO:INP?');
+            % RCI Command: autolock:input?
+            input = obj.parent.query('autolock:input?');
         end
         
         function setSetpoint(obj, value)
-            % Set common setpoint
-            obj.parent.write(sprintf('AUTO:SETP %.6f', value));
+            % RCI Command: autolock:setpoint=0
+            obj.parent.write(sprintf('autolock:setpoint=%.6f', value));
         end
         
         function value = getSetpoint(obj)
-            value = obj.parent.queryNumeric('AUTO:SETP?');
+            % RCI Command: autolock:setpoint?
+            value = obj.parent.queryNumeric('autolock:setpoint?');
         end
         
         function selectControllers(obj, pid1, pid2)
-            % Select which PID controllers to use in AutoLock
-            % pid1, pid2: true/false
-            obj.parent.write(sprintf('AUTO:PID1 %d', pid1));
-            obj.parent.write(sprintf('AUTO:PID2 %d', pid2));
+            % RCI Commands: autolock:controller:pid1, :pid2
+            if pid1
+                obj.parent.write('autolock:controller:pid1=true');
+            else
+                obj.parent.write('autolock:controller:pid1=false');
+            end
+            
+            if pid2
+                obj.parent.write('autolock:controller:pid2=true');
+            else
+                obj.parent.write('autolock:controller:pid2=false');
+            end
         end
         
         function lockToSlope(obj)
-            % Initiate lock to slope (side-of-fringe)
-            obj.parent.write('AUTO:LOCK:SLOPE');
+            % RCI Command: autolock:lock:strategy=slope
+            obj.parent.write('autolock:lock:strategy=slope');
+            obj.parent.write('autolock:lock:enable=true');
         end
         
         function lockToExtremum(obj)
-            % Initiate lock to extremum (top-of-fringe with FM)
-            obj.parent.write('AUTO:LOCK:EXTR');
+            % RCI Command: autolock:lock:strategy=extremum
+            obj.parent.write('autolock:lock:strategy=extremum');
+            obj.parent.write('autolock:lock:enable=true');
         end
         
         function unlock(obj)
-            % Release lock
-            obj.parent.write('AUTO:UNLOCK');
+            % RCI Command: autolock:lock:enable=false
+            obj.parent.write('autolock:lock:enable=false');
         end
     end
 end
