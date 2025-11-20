@@ -73,9 +73,6 @@ main_in_rms_history = [];
 iteration = 0;
 max_points = 200;
 
-fprintf('Time\t| Lock | MainIn\t| AIO1Out\t| Error\t\t| MainIn RMS\n');
-fprintf('-------------------------------------------------------------------\n');
-
 try
     while ishandle(fig)
         iteration = iteration + 1;
