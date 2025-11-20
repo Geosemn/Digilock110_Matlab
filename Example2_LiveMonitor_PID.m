@@ -105,10 +105,7 @@ PID_GAIN = 1.0;
 PID_P = 1000000.0;
 PID_I = 150.0;
 PID_D = 8742.0;
-SETPOINT = 0.018;
-
-fprintf('Time\t| Lock | MainIn\t| AIO1Out\t| Error\t\t| MainIn RMS\n');
-fprintf('------------------------------------------------------------------------\n');
+SETPOINT = 0.018; % use any
 
 try
     while ishandle(fig)
@@ -222,7 +219,7 @@ try
             'FontSize', 9, ...
             'Interpreter', 'tex');
         
-        % Console output (reduced frequency)
+        % Console output (reduced frequency) for live verification 
         if mod(iteration, 5) == 0
             fprintf('%.1fs\t| %d    | %.6f\t| %.6f\t| %+.6f\t| %.6f\n', ...
                 current_time, lock_status, main_in_mean, aio1_out_mean, ...
